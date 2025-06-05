@@ -1,0 +1,53 @@
+% Facts
+parent(john, mary).
+parent(john, mike).
+parent(mary, tom).
+parent(mary, alice).
+parent(mike, kevin).
+parent(mike, rachel).
+parent(lisa, john).
+parent(lisa, anna).
+parent(james, lisa).
+parent(susan, james).
+parent(tom, emma).
+parent(alice, brian).
+parent(kevin, sophie).
+parent(rachel, chris).
+parent(anna, oliver).
+parent(john, lucas).
+parent(lucas, emily).
+parent(tom, noah).
+parent(noah, mia).
+parent(brian, grace).
+parent(mary, ben).
+parent(ben, ella).
+parent(susan, robert).
+parent(robert, victor).
+parent(victor, lily).
+
+% Siblings (only one way, auto-symmetric will handle both directions)
+sibling(mary, mike).
+sibling(john, lisa).
+sibling(mike, lisa).
+sibling(john, mary).
+sibling(mary, anna).
+sibling(kevin, rachel).
+sibling(tom, alice).
+sibling(brian, alice).
+sibling(lucas, mike).
+
+% Extra
+ancestor(susan, john).
+ancestor(james, mary).
+
+% Rules
+grandparent(X, Y) :- parent(X, Z), parent(Z, Y).
+ancestor(X, Y) :- parent(X, Y).
+ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).
+uncle(X, Y) :- parent(Z, Y), sibling(X, Z).
+aunt(X, Y) :- parent(Z, Y), sibling(X, Z).
+cousin(X, Y) :- parent(Z, X), parent(W, Y), sibling(Z, W).
+sibling(X, Y) :- sibling(Y, X).  % Symmetric sibling
+greatgrandparent(X, Y) :- parent(X, Z), grandparent(Z, Y).
+descendant(X, Y) :- ancestor(Y, X).
+nephew(X, Y) :- parent(Z, X), sibling(Z, Y).
