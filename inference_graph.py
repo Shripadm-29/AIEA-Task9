@@ -1,9 +1,9 @@
-# inference_graph.py
+# inference_graph.py (UPGRADED with CoT + Self-Refinement)
 
 from langgraph.graph import StateGraph
 from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from logic_utils import LogicSolver
+from logic_utils import LogicSolver, check_logic_validity
 from dataclasses import dataclass
 from typing import Optional, List
 
@@ -13,6 +13,9 @@ class InferenceState:
     relevant_facts: Optional[str] = None
     logic_rule: Optional[str] = None
     final_solution: Optional[List] = None
+    retry_count: int = 0  # Track number of refinements
+    errors: Optional[List[str]] = None  # To store syntax errors
+    _next: Optional[str] = None  # To store next node decision
 
 def load_kb_node(state):
     with open("kb.txt", "r") as f:
@@ -44,7 +47,41 @@ def logic_generate_node(state):
     )
 
     response = llm.invoke(full_prompt)
-    state.logic_rule = response.content  # ✅ Extract text content
+    state.logic_rule = response.content
+    return state
+
+def check_validity_node(state):
+    errors = check_logic_validity(state.logic_rule)
+    if not errors:
+        state._next = "Solve"
+    else:
+        state.errors = errors
+        state._next = "SelfRefine"
+    return state
+
+def self_refine_node(state):
+    if state.retry_count >= 3:
+        print("❌ Maximum refinement attempts reached.")
+        return state
+
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+    prompt = PromptTemplate(
+        input_variables=["broken_logic", "errors"],
+        template=(
+            "The following Prolog logic has syntax errors:\n\n{errors}\n\n"
+            "Please fix the syntax errors while keeping all the original facts and rules.\n"
+            "Do NOT add, remove, or answer anything.\n\n"
+            "{broken_logic}"
+        )
+    )
+    full_prompt = prompt.format(
+        broken_logic=state.logic_rule,
+        errors="\n".join(state.errors)
+    )
+
+    response = llm.invoke(full_prompt)
+    state.logic_rule = response.content
+    state.retry_count += 1
     return state
 
 def solve_node(state):
@@ -54,13 +91,23 @@ def solve_node(state):
     state.final_solution = solution
     return state
 
+# Define the graph
 graph = StateGraph(InferenceState)
 graph.add_node("LoadKB", load_kb_node)
 graph.add_node("GenerateLogic", logic_generate_node)
+graph.add_node("CheckValidity", check_validity_node)
+graph.add_node("SelfRefine", self_refine_node)
 graph.add_node("Solve", solve_node)
 
+# Define the flow
 graph.set_entry_point("LoadKB")
 graph.add_edge("LoadKB", "GenerateLogic")
-graph.add_edge("GenerateLogic", "Solve")
+graph.add_edge("GenerateLogic", "CheckValidity")
+graph.add_conditional_edges(
+    "CheckValidity",
+    lambda state: state._next
+)
+
+graph.add_edge("SelfRefine", "CheckValidity")
 
 compiled_graph = graph.compile()
