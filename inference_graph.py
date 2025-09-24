@@ -71,7 +71,7 @@ def check_validity_node(state):
 # Node: Self-refine the logic rules if syntax errors are found
 def self_refine_node(state):
     if state.retry_count >= 3:              # Stop if refinement attempted too many times
-        print("❌ Maximum refinement attempts reached.")
+        print("Maximum refinement attempts reached.")
         return state
 
     # New LLM instance for refinement
